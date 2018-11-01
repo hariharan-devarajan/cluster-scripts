@@ -1,12 +1,12 @@
 # Scripts for Cluster
-## setup folders
+## Setup folders
 ```bash
 mkdir -p /home/cc/software
 mkdir -p /home/cc/main/install
 mkdir -p /home/cc/main/program
 ```
 
-## setup nfs
+## Setup nfs
 ```bash
 mkdir -p /home/cc/nfs
 sudo  apt-get install nfs-kernel-server
@@ -16,8 +16,21 @@ cat /home/cc/exports
 sudo mv /home/cc/exports /etc/exports
 ```
 
+### Start nfs script
+```bash
+#!/bin/bash
+NODES=$(cat ./nodes)
+for server_node in $NODES
+do    
+ssh -t $server_node << EOF
+sudo umount --force -l /home/cc/nfs
+sudo mount ares:/ /home/cc/nfs
+EOF
+done
+```
 
-## bashrc
+
+## .bashrc
 ```bash
 export PATH=/home/cc/nfs/install/bin:/home/cc/nfs/install/sbin:$PATH
 export LD_LIBRARY_PATH=/home/cc/nfs/install/lib
@@ -32,7 +45,8 @@ sudo updatedb
 
 ```
 
-## orange fs with tcp
+## Orangefs
+### Install with tcp
 ```bash
 cd /home/cc/software
 sudo apt-get install linux-headers-`uname -r` db5.3
@@ -48,7 +62,7 @@ make kmod_prefix=/home/cc/nfs/install kmod_install
 sudo updatedb
 ```
 
-## orange fs with ib
+### Install with ib
 ```bash
 cd /home/cc/software
 sudo apt-get install linux-headers-`uname -r` db5.3
@@ -64,8 +78,105 @@ make kmod_prefix=/home/cc/nfs/install kmod_install
 sudo updatedb
 ```
 
+### Start pfs server script
+```bash
+#!/bin/bash
+SERVER_NODES=$(cat ./servers)
+INSTALL_DIR=/home/cc/nfs/install
+CONF_DIR=/home/cc/nfs/program/ares/scripts/conf
+for server_node in $SERVER_NODES
+do
+ssh $server_node "sudo rm -rf /home/cc/pfs/"
+ssh $server_node "mkdir -p /home/cc/pfs/"
+ssh $server_node "${INSTALL_DIR}/sbin/pvfs2-server -f -a ${server_node} ${CONF_DIR}/pfs.conf"
+echo "$server_node is starting"
+ssh $server_node "${INSTALL_DIR}/sbin/pvfs2-server -a ${server_node} ${CONF_DIR}/pfs.conf"
+sleep 2
+ssh $server_node "ps -aef | grep pvfs2"
+echo "$server_node  has started"
+done
+```
 
-## mpi
+### Stop pfs server script
+```bash
+#!/bin/bash
+SERVER_NODES=$(cat servers)
+for server_node in $SERVER_NODES
+do
+        echo "$server_node is stopping"
+        ssh $server_node "ps -aef | grep pvfs | awk '{print $2}' | xargs kill -9"
+	    ssh $server_node "killall pvfs2-server"
+        ssh $server_node "ps -aef | grep pvfs"
+        echo "$server_node has been stopped"
+done
+```
+
+### Setup pfs client script
+```bash
+#!/bin/bash
+INSTALL_DIR=/home/cc/nfs/install
+SCRIPTS_DIR=/home/cc/nfs/program/ares/scripts
+umount -l --force /mnt/pfs 
+ps -aef | grep pvfs | awk '{print $2}' | xargs kill -9
+killall pvfs2-client
+rmmod ${INSTALL_DIR}/lib/modules/`uname -r`/kernel/fs/pvfs2/pvfs2.ko 
+rm -rf /mnt/pfs
+mkdir /mnt/pfs
+chown cc:cc -R /mnt/pfs
+echo "loading kernel module"
+insmod ${INSTALL_DIR}/lib/modules/`uname -r`/kernel/fs/pvfs2/pvfs2.ko
+echo "loading pvfs2-client"
+cp /home/cc/nfs/pvfs2tab /etc/pvfs2tab
+${INSTALL_DIR}/sbin/pvfs2-client -p ${INSTALL_DIR}/sbin/pvfs2-client-core
+echo "mounting the pvfs2"
+${INSTALL_DIR}/bin/pvfs2-ls /mnt/pfs
+mount -t pvfs2 tcp://ares-17:3334/orangefs /mnt/pfs
+mount | grep pvfs2
+```
+
+### Start pfs client script
+```bash
+#!/bin/bash
+INSTALL_DIR=/home/cc/nfs/install
+SCRIPTS_DIR=/home/cc/nfs/program/ares/scripts
+CLIENT_NODES=$(cat ./clients)
+for node in $CLIENT_NODES
+do
+	echo "$node is starting"
+        ssh $node "sudo sh ${SCRIPTS_DIR}/setup_clients.sh"
+	echo "$node is running"
+done
+```
+
+### Unsetup pfs client script
+```bash
+#!/bin/bash
+INSTALL_DIR=/home/cc/nfs/install
+SCRIPTS_DIR=/home/cc/nfs/program/ares/scripts
+umount -l --force /mnt/pfs 
+ps -aef | grep pvfs | awk '{print $2}' | xargs kill -9
+killall pvfs2-client
+rmmod ${INSTALL_DIR}/lib/modules/`uname -r`/kernel/fs/pvfs2/pvfs2.ko 
+rm -rf /mnt/pfs
+mount | grep pvfs2
+```
+
+### Stop pfs client script
+```bash
+#!/bin/bash
+INSTALL_DIR=/home/cc/nfs/install
+SCRIPTS_DIR=/home/cc/nfs/program/ares/scripts
+CLIENT_NODES=$(cat ./clients)
+for node in $CLIENT_NODES
+do
+	echo "$node is starting"
+    ssh $node "sudo sh ${SCRIPTS_DIR}/unsetup_clients.sh"
+	echo "$node is running"
+done
+```
+
+
+## MPI
 ```bash
 cd /home/cc/software
 wget http://www.mpich.org/static/downloads/3.2.1/mpich-3.2.1.tar.gz
@@ -77,7 +188,7 @@ make install
 sudo updatedb
 ```
 
-## mpi with ib
+## MPI with ib
 ```bash
 cd /home/cc/software
 wget http://www.mpich.org/static/downloads/3.2.1/mpich-3.2.1.tar.gz
@@ -114,7 +225,7 @@ make install
 sudo updatedb
 ```
 
-## netcdf
+## Netcdf
 ```bash
 cd /home/cc/software
 wget https://www.unidata.ucar.edu/downloads/netcdf/ftp/netcdf-4.6.1.tar.gz
@@ -126,18 +237,18 @@ make install
 sudo updatedb
 ```
 
-## boost
+## Boost
 ```bash
 sudo apt-get install libboost-all-dev
 sudo updatedb
 ```
-## cmake
+## Cmake
 ```bash
 sudo apt install cmake
 sudo updatedb
 ```
 
-## cmake
+## Java
 ```bash
 sudo apt install default-jdk
 sudo updatedb
@@ -166,3 +277,13 @@ make -j48
 sudo make install
 sudo updatedb
 ```
+
+## Hadoop
+```bash
+cd /home/cc/software
+wget http://mirror.cc.columbia.edu/pub/software/apache/hadoop/common/hadoop-2.8.5/hadoop-2.8.5.tar.gz
+tar -xvf hadoop-2.8.5.tar.gz.1
+cp -r hadoop-2.8.5/* /home/cc/main/install/
+sudo updatedb
+```
+
