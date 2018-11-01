@@ -203,7 +203,7 @@ cd /home/cc/software
 wget http://www.mpich.org/static/downloads/3.2.1/mpich-3.2.1.tar.gz
 tar -xvf mpich-3.2.1.tar.gz
 cd mpich-3.2.1
-./configure --prefix=/home/cc/nfs/install --enable-shared --enable-fast=O3 --with-pvfs2=/home/cc/nfs/install
+./configure --prefix=/home/cc/nfs/install --enable-fast=03 --enable-shared --enable-romio --enable-threads --disable-fortran --disable-fc --with-pvfs2=/home/cc/nfs/install
 make -j48
 make install
 sudo updatedb
