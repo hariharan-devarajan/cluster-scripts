@@ -137,14 +137,35 @@ mount | grep pvfs2
 ### Start pfs client script
 ```bash
 #!/bin/bash
+CLIENT_NODES=$(cat ./clients)
 INSTALL_DIR=/home/cc/nfs/install
 SCRIPTS_DIR=/home/cc/nfs/program/ares/scripts
-CLIENT_NODES=$(cat ./clients)
 for node in $CLIENT_NODES
 do
 	echo "$node is starting"
-        ssh $node "sudo sh ${SCRIPTS_DIR}/setup_clients.sh"
-	echo "$node is running"
+ssh $node << EOF1
+sudo cp /home/cc/.bashrc /root/.bashrc
+sudo su << EOF
+umount -l --force /mnt/pfs 
+ps -aef | grep pvfs | awk '{print $2}' | xargs kill -9
+killall pvfs2-client
+rmmod ${INSTALL_DIR}/lib/modules/`uname -r`/kernel/fs/pvfs2/pvfs2.ko 
+rm -rf /mnt/pfs
+mkdir /mnt/pfs
+chown cc:cc -R /mnt/pfs
+echo "loading kernel module"
+insmod ${INSTALL_DIR}/lib/modules/`uname -r`/kernel/fs/pvfs2/pvfs2.ko
+echo "loading pvfs2-client"
+cp /home/cc/nfs/pvfs2tab /etc/pvfs2tab
+LD_PRELOAD=/home/cc/nfs/install/lib/libpvfs2.so.2.9.7 ${INSTALL_DIR}/sbin/pvfs2-client -p ${INSTALL_DIR}/sbin/pvfs2-client-core
+echo "mounting the pvfs2"
+LD_PRELOAD=/home/cc/nfs/install/lib/libpvfs2.so.2.9.7 ${INSTALL_DIR}/bin/pvfs2-ls /mnt/pfs
+mount -t pvfs2 tcp://ares-17:3334/orangefs /mnt/pfs
+mount | grep pvfs2
+EOF
+EOF1
+	echo "client $node is running"
+	read a
 done
 ```
 
@@ -182,7 +203,7 @@ cd /home/cc/software
 wget http://www.mpich.org/static/downloads/3.2.1/mpich-3.2.1.tar.gz
 tar -xvf mpich-3.2.1.tar.gz
 cd mpich-3.2.1
-./configure --prefix=/home/cc/nfs/install --enable-shared --enable-fast=O3 
+./configure --prefix=/home/cc/nfs/install --enable-shared --enable-fast=O3 --with-pvfs2=/home/cc/nfs/install
 make -j48
 make install
 sudo updatedb
