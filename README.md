@@ -143,7 +143,7 @@ sudo apt install default-jdk
 sudo updatedb
 ```
 
-##avro
+## Avro
 ```bash
 cd /home/cc/software
 wget http://mirror.cogentco.com/pub/apache/avro/stable/cpp/avro-cpp-1.8.2.tar.gz
@@ -153,7 +153,7 @@ sudo ./build.sh install
 sudo updatedb
 ```
 
-##Parquet
+## Parquet
 ```bash
 cd /home/cc/software
 wget http://archive.apache.org/dist/arrow/arrow-0.11.0/apache-arrow-0.11.0.tar.gz
